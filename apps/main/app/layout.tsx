@@ -22,40 +22,40 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
 	title: {
-		default: "Space",
-		template: "%s | Space"
+		default: "AfterClass",
+		template: "%s | AfterClass"
 	},
 	description: "Join live study rooms, hang out, and find your people.",
 	keywords: ["Learn", "Build Projects", "Computer Science", "Programming", "Coding", "Developer", "Tech Community", "Coding Resources", "Tech Articles", "Coding Tutorials"],
 	authors: [{ name: "Niraj Jha" }],
 	creator: "Shunya Tech",
 	publisher: "Shunya Tech",
-	metadataBase: new URL("https://www.space.ai"),
+	metadataBase: new URL("https://www.afterclass.app"),
 	alternates: {
 		canonical: "/",
 	},
 	openGraph: {
 		type: "website",
 		locale: "en_US",
-		url: "https://www.space.ai",
-		siteName: "Space",
-		title: "Space - Join live study rooms, hang out, and find your people.",
+		url: "https://www.afterclass.app",
+		siteName: "AfterClass",
+		title: "AfterClass - Join live study rooms, hang out, and find your people.",
 		description: "Join live study rooms, hang out, and find your people.",
 		images: [
 			{
 				url: "/mainlogo.jpeg",
 				width: 1024,
 				height: 1024,
-				alt: "Space - Join live study rooms, hang out, and find your people.",
+				alt: "AfterClass - Join live study rooms, hang out, and find your people.",
 			},
 		],
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Space - Join live study rooms, hang out, and find your people.",
+		title: "AfterClass - Join live study rooms, hang out, and find your people.",
 		description: "Join live study rooms, hang out, and find your people.",
 		images: ["/mainlogo.jpeg"],
-		creator: "@space",
+		creator: "@afterclass",
 	},
 	icons: {
 		icon: [

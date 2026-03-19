@@ -10,28 +10,63 @@ import {
 	InputOTP, InputOTPGroup, InputOTPSlot
 } from "@repo/ui/components/ui/input-otp";
 import { signIn } from "@repo/auth/client";
-import { sendOtpAction } from "@/actions/auth.action";
+import { handleRegisterAction, verifyOtp } from "@/actions/auth.action";
 
 export default function LandingPage() {
 	const [step, setStep] = useState<1 | 2>(1);
 	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
 	const [otp, setOtp] = useState("");
 	const [loading, setLoading] = useState(false);
 	const router = useRouter();
 
-	const handleSendOTP = async (e: React.FormEvent) => {
-		e.preventDefault();
-		if (!email) return;
+	const requestOtpOrSignIn = async () => {
+		const normalizedEmail = email.trim().toLowerCase();
+		if (!normalizedEmail || !password) return;
 
 		setLoading(true);
 		try {
-			await sendOtpAction(email);
-			setStep(2);
+			const result = await handleRegisterAction(normalizedEmail, password);
+
+			if (!result.success) {
+				toast.error(result.message || "Failed to continue. Please try again.");
+				return;
+			}
+
+			if (result.canSignIn) {
+				const signInResult = await signIn("credentials", {
+					email: normalizedEmail,
+					password,
+					redirect: false,
+				});
+
+				if (signInResult?.error) {
+					toast.error("Unable to sign in. Please check your credentials.");
+					return;
+				}
+
+				toast.success("Welcome back.");
+				router.replace("/home");
+				return;
+			}
+
+			if (result.requiresOtp) {
+				setStep(2);
+				toast.success(result.message || "OTP sent to your email.");
+				return;
+			}
+
+			toast.error("Something went wrong. Please try again.");
 		} catch {
-			toast.error("Failed to send code. Please try again.");
+			toast.error("Failed to continue. Please try again.");
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	const handleRegister = async (e: React.FormEvent) => {
+		e.preventDefault();
+		await requestOtpOrSignIn();
 	};
 
 	const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
@@ -40,19 +75,26 @@ export default function LandingPage() {
 
 		setLoading(true);
 		try {
-			const result = await signIn("credentials", {
+			const result = await verifyOtp(email, otp);
+			if (!result.success) {
+				toast.error(result.message || "Invalid or expired OTP.");
+				return;
+			}
+
+			const signInResult = await signIn("credentials", {
 				email: email.trim(),
-				otp: otp.trim(),
+				password: "verified", // Special case to indicate OTP verification
 				redirect: false,
 			});
 
-			if (result?.ok) {
-				toast.success("Welcome to Space.");
-				router.replace("/onboarding");
+			if (signInResult?.error) {
+				toast.error("Unable to sign in after verification. Please try again.");
 				return;
 			}
-			toast.error("Invalid or expired OTP.");
-		} catch (error) {
+
+			toast.success("Welcome to AfterClass.");
+			router.replace("/home");
+		} catch {
 			toast.error("Unable to verify OTP.");
 		} finally {
 			setLoading(false);
@@ -60,111 +102,139 @@ export default function LandingPage() {
 	};
 
 	return (
-		<div className="relative min-h-screen bg-[#fafafa] dark:bg-[#09090b] selection:bg-zinc-200 dark:selection:bg-zinc-800">
-			<div className="pointer-events-none absolute inset-0 -z-10 hidden dark:block" style={{
-				backgroundImage: "radial-gradient(circle at center, rgba(30,27,75,0.15) 0%, rgba(9,9,11,1) 50%, rgba(9,9,11,1) 100%)"
-			}} />
+		<div className="relative h-screen overflow-hidden bg-[#f7f7f5] text-zinc-900 selection:bg-zinc-200 dark:bg-[#0d0d0c] dark:text-zinc-100 dark:selection:bg-zinc-800">
+			<div className="pointer-events-none absolute inset-0 -z-10">
+				<div className="absolute -left-24 top-10 h-56 w-56 rounded-full bg-zinc-300/40 blur-3xl dark:bg-zinc-700/20" />
+				<div className="absolute -right-24 bottom-10 h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl dark:bg-emerald-800/20" />
+			</div>
 
-			<div className="absolute inset-x-0 top-0 flex flex-row items-center justify-between p-6">
-				<div
-					className="font-sans text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50"
-					style={{ fontFeatureSettings: '"ss01", "cv01"' }}
-				>
-					Gather
+			<header className="absolute inset-x-0 top-0 z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
+				<div className="text-lg font-bold tracking-tight" style={{ fontFeatureSettings: '"ss01", "cv01"' }}>
+					AfterClass
 				</div>
 				<ThemeToggle />
-			</div>
-			<main className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
-				<div className="flex animate-in fade-in slide-in-from-bottom-4 duration-700 flex-col items-center">
-					<div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-600 shadow-sm dark:border-zinc-800/50 dark:bg-zinc-900/50 dark:text-zinc-400">
+			</header>
+
+			<main className="mx-auto grid h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-6 pt-24 pb-8 md:grid-cols-[1.1fr_0.9fr] md:gap-10">
+				<section className="animate-in fade-in slide-in-from-left-4 duration-700 text-left">
+					<div className="inline-flex items-center gap-2 rounded-full border border-zinc-300/80 bg-white/80 px-3 py-1 text-xs font-medium text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300">
 						<span className="relative flex h-2 w-2">
-							<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-							<span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+							<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+							<span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
 						</span>
-						Live now · 12 rooms active
+						Live now · Campus rooms active
 					</div>
-					<h1
-						className="max-w-xl font-sans text-5xl font-extrabold tracking-tighter text-zinc-900 hover:tracking-tight transition-all duration-300 sm:text-6xl dark:text-white"
-						style={{ fontFeatureSettings: '"ss01", "cv01"' }}
-					>
-						Your campus, <br className="hidden sm:block" />
-						always open.
+					<h1 className="mt-5 max-w-xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ fontFeatureSettings: '"ss01", "cv01"' }}>
+						The place your campus logs in after class.
 					</h1>
-					<p className="mt-4 max-w-sm text-base text-zinc-600 dark:text-zinc-400">
-						Join live study rooms, hang out, and find your people.
+					<p className="mt-4 max-w-xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-300 sm:text-base">
+						AfterClass helps students find live study rooms, meet batchmates, and stay connected to campus conversations in one clean space.
 					</p>
-					<div className="mt-10 w-full max-w-sm rounded-[1rem] border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-						{
-							step === 1 ? (
-								<form onSubmit={handleSendOTP} className="flex gap-2 animate-in fade-in">
+
+					<div className="mt-6 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+						<div className="rounded-xl border border-zinc-200/90 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+							<p className="text-xs uppercase tracking-wide text-zinc-500">Rooms</p>
+							<p className="mt-1 text-sm font-semibold">Drop in instantly</p>
+						</div>
+						<div className="rounded-xl border border-zinc-200/90 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+							<p className="text-xs uppercase tracking-wide text-zinc-500">People</p>
+							<p className="mt-1 text-sm font-semibold">Meet your batch</p>
+						</div>
+						<div className="rounded-xl border border-zinc-200/90 bg-white/90 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+							<p className="text-xs uppercase tracking-wide text-zinc-500">Flow</p>
+							<p className="mt-1 text-sm font-semibold">OTP-secure login</p>
+						</div>
+					</div>
+				</section>
+
+				<section className="animate-in fade-in slide-in-from-right-4 duration-700">
+					<div className="rounded-2xl border border-zinc-200/90 bg-white/95 p-5 shadow-xl shadow-zinc-300/20 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80 dark:shadow-black/25 sm:p-6">
+						<div className="mb-4 text-left">
+							<p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Continue to AfterClass</p>
+							<h2 className="mt-1 text-xl font-bold tracking-tight">Sign in with your campus email</h2>
+						</div>
+
+						{step === 1 ? (
+							<form onSubmit={handleRegister} className="space-y-4">
+								<div className="space-y-3">
 									<Input
 										type="email"
-										placeholder="yourmail@gmail.com"
+										placeholder="you@college.edu"
 										value={email}
 										onChange={(e) => setEmail(e.target.value)}
 										required
-										className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-zinc-400 font-medium"
+										className="h-11 border-zinc-200 bg-white/80 font-medium placeholder:text-zinc-400 focus-visible:ring-zinc-300 dark:border-zinc-800 dark:bg-zinc-950"
 									/>
-									<Button
-										type="submit"
-										disabled={loading || !email}
-										className="rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-									>
-										{loading ? "Sending..." : "Continue"}
-									</Button>
-								</form>
-							) : (
-								<form onSubmit={handleVerifyOtp} className="flex flex-col gap-4 p-2 animate-in fade-in slide-in-from-right-4">
-									<div className="text-left">
-										<p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-											Enter verification code
-										</p>
-										<p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-											We sent a code to <span className="font-semibold text-zinc-700 dark:text-zinc-300">{email}</span>.{" "}
-											<button
-												type="button"
-												onClick={() => setStep(1)}
-												className="cursor-pointer underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-200"
-											>
-												Change
-											</button>
-										</p>
-									</div>
-									<div className="flex justify-center py-2">
-										<InputOTP
-											maxLength={6}
-											value={otp}
-											onChange={(value) => setOtp(value)}
+									<Input
+										type="password"
+										placeholder="Password"
+										value={password}
+										onChange={(e) => setPassword(e.target.value)}
+										required
+										className="h-11 border-zinc-200 bg-white/80 font-medium placeholder:text-zinc-400 focus-visible:ring-zinc-300 dark:border-zinc-800 dark:bg-zinc-950"
+									/>
+								</div>
+								<Button
+									type="submit"
+									disabled={loading || !email || !password}
+									className="h-11 w-full rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+								>
+									{loading ? "Checking account..." : "Continue"}
+								</Button>
+							</form>
+						) : (
+							<form onSubmit={handleVerifyOtp} className="space-y-4">
+								<div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-left dark:border-zinc-800 dark:bg-zinc-950">
+									<p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Enter verification code</p>
+									<p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+										Code sent to <span className="font-semibold text-zinc-700 dark:text-zinc-300">{email}</span>.{" "}
+										<button
+											type="button"
+											onClick={() => setStep(1)}
+											className="underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-200"
 										>
-											<InputOTPGroup className="gap-2">
-												<InputOTPSlot index={0} className="rounded-md border-zinc-200 dark:border-zinc-800 !w-10 !h-12 text-lg font-mono dark:bg-zinc-950" />
-												<InputOTPSlot index={1} className="rounded-md border-zinc-200 dark:border-zinc-800 !w-10 !h-12 text-lg font-mono dark:bg-zinc-950" />
-												<InputOTPSlot index={2} className="rounded-md border-zinc-200 dark:border-zinc-800 !w-10 !h-12 text-lg font-mono dark:bg-zinc-950" />
-												<InputOTPSlot index={3} className="rounded-md border-zinc-200 dark:border-zinc-800 !w-10 !h-12 text-lg font-mono dark:bg-zinc-950" />
-												<InputOTPSlot index={4} className="rounded-md border-zinc-200 dark:border-zinc-800 !w-10 !h-12 text-lg font-mono dark:bg-zinc-950" />
-												<InputOTPSlot index={5} className="rounded-md border-zinc-200 dark:border-zinc-800 !w-10 !h-12 text-lg font-mono dark:bg-zinc-950" />
-											</InputOTPGroup>
-										</InputOTP>
-									</div>
-									<Button
-										type="submit"
-										disabled={loading || otp.length !== 6}
-										className="w-full rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+											Change
+										</button>
+									</p>
+								</div>
+								<div className="flex justify-center py-1">
+									<InputOTP
+										maxLength={6}
+										value={otp}
+										onChange={(value) => setOtp(value)}
 									>
-										{loading ? "Verifying..." : "Verify"}
-									</Button>
-									<button
-										type="button"
-										onClick={handleSendOTP}
-										className="text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-									>
-										Resend code
-									</button>
-								</form>
-							)
-						}
+										<InputOTPGroup className="gap-2">
+											<InputOTPSlot index={0} className="!h-11 !w-10 rounded-md border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950" />
+											<InputOTPSlot index={1} className="!h-11 !w-10 rounded-md border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950" />
+											<InputOTPSlot index={2} className="!h-11 !w-10 rounded-md border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950" />
+											<InputOTPSlot index={3} className="!h-11 !w-10 rounded-md border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950" />
+											<InputOTPSlot index={4} className="!h-11 !w-10 rounded-md border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950" />
+											<InputOTPSlot index={5} className="!h-11 !w-10 rounded-md border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950" />
+										</InputOTPGroup>
+									</InputOTP>
+								</div>
+								<Button
+									type="submit"
+									disabled={loading || otp.length !== 6}
+									className="h-11 w-full rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+								>
+									{loading ? "Verifying..." : "Verify code"}
+								</Button>
+								<button
+									type="button"
+									onClick={requestOtpOrSignIn}
+									className="w-full text-center text-xs text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+								>
+									Resend code
+								</button>
+							</form>
+						)}
+
+						<p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+							By continuing, you agree to use AfterClass responsibly within your campus community.
+						</p>
 					</div>
-				</div>
+				</section>
 			</main>
 		</div>
 	);

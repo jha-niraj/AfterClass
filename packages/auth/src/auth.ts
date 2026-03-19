@@ -1,84 +1,84 @@
 import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@repo/prisma";
-import crypto from "crypto";
-
-function hashOtp(otp: string): string {
-    return crypto.createHash("sha256").update(otp).digest("hex");
-}
-
-function safeOtpEqual(inputOtp: string, storedHash: string): boolean {
-    const inputHash = hashOtp(inputOtp);
-    return crypto.timingSafeEqual(Buffer.from(inputHash), Buffer.from(storedHash));
-}
+import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma),
 
     providers: [
+        // Google OAuth Provider
+        GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID || "",
+            clientSecret: process.env.GOOGLE_SECRET_ID || "",
+            httpOptions: {
+                timeout: 10000,
+            },
+        }),
+
+        // Basic Credentials Provider - extend in your app
         CredentialsProvider({
-            name: "Email OTP",
+            name: "Credentials",
             credentials: {
                 email: { label: "Email", type: "email" },
-                otp: { label: "OTP", type: "text" },
+                password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.otp) {
+                if (!credentials?.email || !credentials?.password) {
                     return null;
                 }
 
+                // Apps should override this with their own authentication logic
+                // This is just a minimal example
                 try {
-                    const normalizedEmail = credentials.email.trim().toLowerCase();
-                    const otpInput = credentials.otp.trim();
-
-                    const latestOtp = await prisma.emailOTP.findFirst({
+                    const user = await prisma.user.findUnique({
                         where: {
-                            email: normalizedEmail,
-                            consumedAt: null,
-                            expiresAt: { gt: new Date() },
-                        },
-                        orderBy: { createdAt: "desc" },
-                    });
-
-                    if (!latestOtp) {
-                        return null;
-                    }
-
-                    const isValidOtp = safeOtpEqual(otpInput, latestOtp.otpHash);
-
-                    if (!isValidOtp) {
-                        await prisma.emailOTP.update({
-                            where: { id: latestOtp.id },
-                            data: { attempts: { increment: 1 } },
-                        });
-                        return null;
-                    }
-
-                    await prisma.emailOTP.update({
-                        where: { 
-                            id: latestOtp.id 
-                        },
-                        data: { 
-                            consumedAt: new Date() 
-                        },
-                    });
-
-                    let user = await prisma.user.findUnique({
-                        where: { 
-                            email: normalizedEmail 
-                        },
+                            email: credentials.email as string
+                        }
                     });
 
                     if (!user) {
-                        user = await prisma.user.create({
-                            data: {
-                                email: normalizedEmail,
-                                name: normalizedEmail.split("@")[0] || "Vani User",
-                                emailVerified: new Date(),
-                            },
+                        throw new Error("USER_NOT_FOUND");
+                    }
+
+                    if (!user.hashedPassword) {
+                        throw new Error("OAUTH_ACCOUNT");
+                    }
+
+                    // For special case where password is "verified" (after OTP verification)
+                    if (credentials.password === "verified") {
+                        const freshUser = await prisma.user.findUnique({
+                            where: {
+                                email: credentials.email as string
+                            }
                         });
+
+                        if (freshUser && freshUser.emailVerified) {
+                            return {
+                                id: freshUser.id,
+                                email: freshUser.email!,
+                                name: freshUser.name || freshUser.email || "User",
+                                image: freshUser.image || null,
+                                role: freshUser.role,
+                                emailVerified: freshUser.emailVerified ? new Date() : null,
+                            };
+                        } else {
+                            throw new Error("EMAIL_NOT_VERIFIED");
+                        }
+                    }
+
+                    if (!user.emailVerified) {
+                        throw new Error("EMAIL_NOT_VERIFIED");
+                    }
+
+                    const isPasswordValid = await bcrypt.compare(credentials.password as string, user.hashedPassword);
+                    console.log("Password Valid: " + isPasswordValid);
+
+                    if (!isPasswordValid) {
+                        throw new Error("INVALID_CREDENTIALS");
                     }
 
                     return {
@@ -86,11 +86,12 @@ export const authOptions: NextAuthOptions = {
                         email: user.email!,
                         name: user.name || user.email || "User",
                         image: user.image || null,
-                        role: user.role || "USER",
+                        role: user.role,
+                        emailVerified: user.emailVerified ? new Date() : null,
                     };
                 } catch (error) {
-                    console.error("Email OTP authorization error:", error);
-                    return null;
+                    console.error("Authorization error:", error);
+                    throw error;
                 }
             },
         }),
@@ -103,8 +104,8 @@ export const authOptions: NextAuthOptions = {
                 token.id = user.id;
                 token.email = user.email;
                 token.name = user.name;
-                token.image = user.image;
-                token.role = user.role;
+                token.image = token.image;
+                token.role = token.role;
             }
 
             // Support session updates
@@ -128,7 +129,9 @@ export const authOptions: NextAuthOptions = {
         },
 
         // Sign in callback - apps can add custom logic
-        async signIn() {
+        async signIn({ user, account, profile }) {
+            // Allow all sign ins by default
+            // Apps can add restrictions or custom logic here
             return true;
         },
 
@@ -150,13 +153,12 @@ export const authOptions: NextAuthOptions = {
     },
 
     pages: {
-        signIn: "/",
+        signIn: "/signin",
         error: "/error",
     },
 
     session: {
         strategy: "jwt",
-        maxAge: 60 * 60 * 24 * 7,
     },
 
     secret: process.env.NEXTAUTH_SECRET,

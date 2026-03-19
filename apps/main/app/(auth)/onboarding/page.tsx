@@ -50,7 +50,7 @@ export default function OnboardingPage() {
                     className="font-sans text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50"
                     style={{ fontFeatureSettings: '"ss01", "cv01"' }}
                 >
-                    Gather
+                    AfterClass
                 </div>
             </div>
             <main className="flex min-h-screen flex-col items-center justify-center p-6">
@@ -121,7 +121,7 @@ export default function OnboardingPage() {
                             disabled={loading}
                             className="mt-4 h-11 w-full rounded-lg bg-zinc-900 font-medium text-white transition-all hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 hover:shadow-md active:scale-[0.98]"
                         >
-                            {loading ? "Saving..." : "Enter Gather →"}
+                            {loading ? "Saving..." : "Enter AfterClass →"}
                         </Button>
                     </form>
                 </div>

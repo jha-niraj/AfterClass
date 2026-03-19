@@ -17,7 +17,7 @@ export function Sidebar() {
         <div className="flex h-full w-[220px] flex-col border-r border-zinc-200 bg-[#fafafa] dark:border-zinc-800 dark:bg-[#09090b]">
             <div className="p-4">
                 <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans" style={{ fontFeatureSettings: '"ss01", "cv01"' }}>
-                    Gather
+                    AfterClass
                 </h1>
                 <div className="mt-1 flex flex-col">
                     <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Arjun Singh</span>
